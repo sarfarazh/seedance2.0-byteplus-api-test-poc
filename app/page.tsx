@@ -338,7 +338,7 @@ export default function Home() {
       <Sidebar open={open} setOpen={setOpen} screen={screen} setScreen={setScreen} />
       <header className="topbar">
         <HamburgerButton onClick={() => setOpen(true)} />
-        <h1 className="text-base font-semibold tracking-tight">{SCREEN_TITLE[screen]}</h1>
+        <h1 className="heading-lg">{SCREEN_TITLE[screen]}</h1>
       </header>
       <div className="container-narrow pt-3">
         {screen === 'settings' && (
@@ -350,7 +350,7 @@ export default function Home() {
 
             <KeyCard
               title="BytePlus API key"
-              instructions={<>Used to call Seedance 2.0 via BytePlus ModelArk. Create a key in the <a className="text-accent hover:text-accent-hover underline" href="https://console.byteplus.com/ark/region:ark+ap-southeast-1/apiKey" target="_blank" rel="noreferrer">BytePlus ModelArk console</a> (ap-southeast-1 region) and paste it below.</>}
+              instructions={<>Used to call Seedance 2.0 via BytePlus ModelArk. Create a key in the <a className="link" href="https://console.byteplus.com/ark/region:ark+ap-southeast-1/apiKey" target="_blank" rel="noreferrer">BytePlus ModelArk console</a> (ap-southeast-1 region) and paste it below.</>}
               placeholder="paste BytePlus API key"
               saved={bp}
               editing={bpEditing}
@@ -368,7 +368,7 @@ export default function Home() {
 
             <KeyCard
               title="OpenRouter API key"
-              instructions={<>Used for prompt suggestion via Claude on OpenRouter. Create a key at the <a className="text-accent hover:text-accent-hover underline" href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">OpenRouter keys page</a> and paste it below.</>}
+              instructions={<>Used for prompt suggestion via Claude on OpenRouter. Create a key at the <a className="link" href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">OpenRouter keys page</a> and paste it below.</>}
               placeholder="paste OpenRouter API key"
               saved={or}
               editing={orEditing}
@@ -491,7 +491,7 @@ export default function Home() {
                 <div className="flex items-center gap-3 text-xs text-muted flex-wrap">
                   {typeof h.usageTotalTokens === 'number' && <span>{fmtNum(h.usageTotalTokens)} tokens</span>}
                   {typeof h.estimatedCostUsd === 'number' && <span>${h.estimatedCostUsd.toFixed(4)}</span>}
-                  {h.videoUrl && (<a className="text-accent hover:text-accent-hover ml-auto" href={h.videoUrl} target="_blank" rel="noreferrer">Open video</a>)}
+                  {h.videoUrl && (<a className="link ml-auto" href={h.videoUrl} target="_blank" rel="noreferrer">Open video</a>)}
                 </div>
                 {h.error && <div className="text-xs text-rose-300 break-words">{h.error}</div>}
               </article>
@@ -681,7 +681,7 @@ function Stat({ label, value, hint, tone }: { label: string; value: string; hint
   return (
     <div className="card-tight">
       <div className="text-xs text-muted">{label}</div>
-      <div className={`text-xl font-semibold mt-1 ${toneClass}`}>{value}</div>
+      <div className={`text-xl font-semibold mt-1 tabular ${toneClass}`}>{value}</div>
       {hint && <div className="text-xs text-muted mt-0.5">{hint}</div>}
     </div>
   );
@@ -691,7 +691,7 @@ function KV({ k, v }: { k: string; v: string | number }) {
   return (
     <div className="flex items-center justify-between gap-2">
       <span className="text-muted">{k}</span>
-      <span className="font-medium">{v}</span>
+      <span className="font-medium tabular">{v}</span>
     </div>
   );
 }

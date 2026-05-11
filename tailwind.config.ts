@@ -5,20 +5,25 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        bg: '#0a0c10',
-        card: '#141922',
-        'card-2': '#1b2230',
-        border: '#262e40',
-        'border-strong': '#3a4459',
-        muted: '#8e9ab0',
-        accent: '#3b82f6',
-        'accent-hover': '#60a5fa',
+        bg: '#000000',
+        surface: '#0c0c0c',
+        'surface-2': '#141414',
+        'surface-3': '#1c1c1c',
+        border: '#1f1f1f',
+        'border-strong': '#2f2f2f',
+        text: '#fafafa',
+        muted: '#8a8a8a',
+        accent: '#f5c518',
+        'accent-hover': '#facc15',
+        'accent-soft': '#3a2e08',
       },
       fontFamily: {
-        sans: ['ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+        sans: ['var(--font-inter)', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
       },
-      boxShadow: {
-        card: '0 1px 2px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.02) inset',
+      letterSpacing: {
+        tightish: '-0.012em',
+        tighter2: '-0.02em',
       },
     },
   },

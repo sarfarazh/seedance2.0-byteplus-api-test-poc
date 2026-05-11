@@ -15,15 +15,15 @@ export interface ActiveRun {
   videoUrl?: string;
 }
 
-const PHASE_STYLE: Record<RunPhase, { label: string; color: string }> = {
-  creating: { label: 'Creating', color: 'bg-blue-600' },
-  queued: { label: 'Queued', color: 'bg-blue-500' },
-  polling: { label: 'Polling', color: 'bg-amber-600' },
-  succeeded: { label: 'Succeeded', color: 'bg-emerald-600' },
-  failed: { label: 'Failed', color: 'bg-rose-600' },
-  cancelled: { label: 'Cancelled', color: 'bg-rose-600' },
-  expired: { label: 'Expired', color: 'bg-rose-600' },
-  timeout: { label: 'Timeout', color: 'bg-rose-600' },
+const PHASE_STYLE: Record<RunPhase, { label: string; pillClass: string }> = {
+  creating: { label: 'Creating', pillClass: 'pill-muted' },
+  queued: { label: 'Queued', pillClass: 'pill-muted' },
+  polling: { label: 'Polling', pillClass: 'pill-amber' },
+  succeeded: { label: 'Succeeded', pillClass: 'pill-green' },
+  failed: { label: 'Failed', pillClass: 'pill-red' },
+  cancelled: { label: 'Cancelled', pillClass: 'pill-red' },
+  expired: { label: 'Expired', pillClass: 'pill-red' },
+  timeout: { label: 'Timeout', pillClass: 'pill-red' },
 };
 
 const isActive = (p: RunPhase) => p === 'creating' || p === 'queued' || p === 'polling';
@@ -39,7 +39,7 @@ const shortModel = (m: string) => (m.includes('fast') ? 'Seedance 2.0 fast' : 'S
 
 function Spinner() {
   return (
-    <svg className="animate-spin h-4 w-4 text-blue-400 shrink-0" viewBox="0 0 24 24" fill="none">
+    <svg className="animate-spin h-4 w-4 text-accent shrink-0" viewBox="0 0 24 24" fill="none">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
     </svg>
@@ -75,7 +75,7 @@ export default function GenerationStatus({
         <div className="flex items-center gap-2 text-sm">
           <Spinner />
           <span>Generating prompt suggestion…</span>
-          {suggestStartedAt && <span className="text-muted text-xs ml-auto">{fmtElapsed(now - suggestStartedAt)}</span>}
+          {suggestStartedAt && <span className="text-muted text-xs ml-auto tabular">{fmtElapsed(now - suggestStartedAt)}</span>}
         </div>
       )}
       {runs.map(r => {
@@ -85,9 +85,9 @@ export default function GenerationStatus({
           <div key={r.id} className="border-t border-border pt-2 first:border-t-0 first:pt-0">
             <div className="flex items-center gap-2 text-sm">
               {active ? <Spinner /> : <PhaseIcon phase={r.phase} />}
-              <span className={`px-2 py-0.5 rounded text-xs text-white ${st.color}`}>{st.label}</span>
+              <span className={st.pillClass}>{st.label}</span>
               <span className="text-muted text-xs truncate">{shortModel(r.model)}</span>
-              <span className="text-muted text-xs ml-auto shrink-0">{fmtElapsed(now - r.startedAt)}</span>
+              <span className="text-muted text-xs ml-auto shrink-0 tabular">{fmtElapsed(now - r.startedAt)}</span>
             </div>
             {r.taskId && (
               <div className="text-xs text-muted mt-1">
