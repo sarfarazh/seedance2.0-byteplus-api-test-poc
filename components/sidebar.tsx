@@ -2,6 +2,7 @@
 import { Screen } from '@/types/app';
 
 const ITEMS: { key: Screen; label: string; icon: JSX.Element }[] = [
+  { key: 'home', label: 'Home', icon: <IconHome /> },
   { key: 'generate', label: 'Generate', icon: <IconSpark /> },
   { key: 'history', label: 'History', icon: <IconClock /> },
   { key: 'usage', label: 'Usage', icon: <IconChart /> },
@@ -10,6 +11,7 @@ const ITEMS: { key: Screen; label: string; icon: JSX.Element }[] = [
 ];
 
 export const SCREEN_TITLE: Record<Screen, string> = {
+  home: 'Home',
   generate: 'Generate',
   history: 'History',
   usage: 'Usage',
@@ -68,6 +70,7 @@ export function HamburgerButton({ onClick }: { onClick: () => void }) {
   );
 }
 
+function IconHome() { return (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10"/></svg>); }
 function IconMenu() { return (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>); }
 function IconClose() { return (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M6 18L18 6"/></svg>); }
 function IconSpark() { return (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/></svg>); }

@@ -68,7 +68,7 @@ const groupRunning = (logs: AppLog[]): LogGroup[] => {
 };
 
 export default function Home() {
-  const [screen, setScreen] = useState<Screen>('generate');
+  const [screen, setScreen] = useState<Screen>('home');
   const [open, setOpen] = useState(false);
   const [bp, setBp] = useState('');
   const [or, setOr] = useState('');
@@ -370,6 +370,75 @@ export default function Home() {
         <h1 className="heading-lg">{SCREEN_TITLE[screen]}</h1>
       </header>
       <div className="container-narrow pt-3">
+        {screen === 'home' && (
+          <>
+            <section className="card relative overflow-hidden">
+              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/60 to-transparent" />
+              <div className="space-y-3">
+                <div className="label">Seedance 2.0 · PoC</div>
+                <h2 className="heading-xl leading-tight">Turn a one-line idea into a short cinematic video.</h2>
+                <p className="text-sm text-muted leading-relaxed">Claude expands your logline into a structured prompt. BytePlus Seedance 2.0 renders the video. You watch it happen in real time.</p>
+                <div className="flex gap-2 pt-1">
+                  <button className="btn-primary flex-1" onClick={() => setScreen('generate')}>Start a generation</button>
+                  <button className="btn-secondary" onClick={() => setScreen('history')} aria-label="View history">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            {(!bp || !or) && (
+              <section className="card border-amber-500/40 bg-amber-500/5 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="pill-amber">Setup required</span>
+                </div>
+                <p className="text-sm leading-relaxed">
+                  {!bp && !or && 'Add your BytePlus and OpenRouter API keys before generating.'}
+                  {bp && !or && 'Add your OpenRouter API key to use prompt suggestion.'}
+                  {!bp && or && 'Add your BytePlus API key to generate videos.'}
+                </p>
+                <button className="btn-secondary w-full" onClick={() => setScreen('settings')}>Open Settings</button>
+              </section>
+            )}
+
+            <section className="grid grid-cols-3 gap-2">
+              <Stat label="Videos" value={fmtNum(usage.totalVideos)} />
+              <Stat label="Success" value={fmtNum(usage.successVideos)} tone={usage.successVideos > 0 ? 'green' : undefined} />
+              <Stat label="Spent" value={`$${usage.usdUsed.toFixed(2)}`} />
+            </section>
+
+            {history[0] && (
+              <section className="card space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="section-title">Latest</div>
+                  <button className="text-xs text-muted hover:text-text transition-colors" onClick={() => setScreen('history')}>View all →</button>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={statusPillClass(history[0].status)}>{history[0].status}</span>
+                  <span className="text-xs text-muted">{shortModelLabel(history[0].model)}</span>
+                  <span className="text-xs text-muted ml-auto tabular">{timeAgo(history[0].timestamp)}</span>
+                </div>
+                {history[0].logline && <div className="text-sm text-muted break-words italic">&ldquo;{history[0].logline}&rdquo;</div>}
+                {history[0].videoUrl && <video className="w-full rounded-lg" controls src={history[0].videoUrl} />}
+                {history[0].error && <div className="text-xs text-rose-300 break-words">{history[0].error}</div>}
+              </section>
+            )}
+
+            <section className="grid grid-cols-2 gap-2">
+              <NavTile label="History" hint="past generations" onClick={() => setScreen('history')} />
+              <NavTile label="Usage" hint="balance & spend" onClick={() => setScreen('usage')} />
+              <NavTile label="Logs" hint="api activity" onClick={() => setScreen('logs')} />
+              <NavTile label="Settings" hint="api keys" onClick={() => setScreen('settings')} />
+            </section>
+
+            <footer className="text-[11px] text-muted text-center pt-2 pb-1 space-x-2">
+              <a className="link" href="https://docs.byteplus.com/en/docs/ModelArk/1520757" target="_blank" rel="noreferrer">Seedance docs</a>
+              <span>·</span>
+              <a className="link" href="https://openrouter.ai/docs" target="_blank" rel="noreferrer">OpenRouter docs</a>
+            </footer>
+          </>
+        )}
+
         {screen === 'settings' && (
           <>
             <section className="card space-y-2">
@@ -726,6 +795,21 @@ function KeyCard({
         </div>
       )}
     </section>
+  );
+}
+
+function NavTile({ label, hint, onClick }: { label: string; hint: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="card-tight text-left hover:bg-surface-2 hover:border-border-strong transition-colors group"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-medium">{label}</span>
+        <svg className="w-3.5 h-3.5 text-muted group-hover:text-accent group-hover:translate-x-0.5 transition-all" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>
+      <div className="text-[11px] text-muted mt-1 uppercase tracking-wider">{hint}</div>
+    </button>
   );
 }
 
