@@ -6,6 +6,7 @@ import { AppLog, GenerationRecord, GenerationStatus as GenStatus, ModelChoice, R
 import { OpenRouterKeyInfo } from '@/types/openrouter';
 import { storage } from '@/lib/storage';
 import { estimate, metrics } from '@/lib/pricing';
+import { estimateGenerationCost } from '@/lib/estimate-cost';
 import { toStructuredText } from '@/lib/prompt';
 import { dt, uid } from '@/lib/utils';
 
@@ -314,6 +315,18 @@ export default function Home() {
   }, [screen, or]);
 
   const m = useMemo(() => metrics(usage.resourceTokensConsumed, usage.successVideos), [usage]);
+
+  const costEstimate = useMemo(() => {
+    const models = choice === 'both' ? ['dreamina-seedance-2-0-260128', 'dreamina-seedance-2-0-fast-260128'] : [mapModel(choice)];
+    const parts = models.map(mm => ({ model: mm, est: estimateGenerationCost(mm, duration, history) }));
+    const usdLow = parts.reduce((s, p) => s + p.est.usdLow, 0);
+    const usdHigh = parts.reduce((s, p) => s + p.est.usdHigh, 0);
+    const tokensLow = parts.reduce((s, p) => s + p.est.tokensLow, 0);
+    const tokensHigh = parts.reduce((s, p) => s + p.est.tokensHigh, 0);
+    const fromHistory = parts.every(p => p.est.source === 'history');
+    const totalSamples = parts.reduce((s, p) => s + p.est.sampleCount, 0);
+    return { usdLow, usdHigh, tokensLow, tokensHigh, fromHistory, totalSamples, parts };
+  }, [choice, duration, history]);
   const filteredLogs = useMemo(() => {
     if (!logFilter) return logs;
     const q = logFilter.toLowerCase();
@@ -434,6 +447,28 @@ export default function Home() {
                 Generate audio
               </label>
               <div className="text-xs text-muted">Resolution fixed at 480p (PoC).</div>
+              <div className="card-tight !p-3 space-y-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted">Estimated cost</span>
+                  <span className="text-sm font-semibold">
+                    {costEstimate.usdLow === costEstimate.usdHigh
+                      ? `~$${costEstimate.usdLow.toFixed(4)}`
+                      : `~$${costEstimate.usdLow.toFixed(4)} – $${costEstimate.usdHigh.toFixed(4)}`}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-xs text-muted">
+                  <span>
+                    {costEstimate.fromHistory
+                      ? `Based on ${costEstimate.totalSamples} past video${costEstimate.totalSamples === 1 ? '' : 's'}`
+                      : 'Pixel-formula estimate (no history yet)'}
+                  </span>
+                  <span>
+                    {costEstimate.tokensLow === costEstimate.tokensHigh
+                      ? `${fmtNum(costEstimate.tokensLow)} tk`
+                      : `${fmtNum(costEstimate.tokensLow)}–${fmtNum(costEstimate.tokensHigh)} tk`}
+                  </span>
+                </div>
+              </div>
               <button className="btn-primary w-full" disabled={!bp || !or || busy} onClick={generate}>{busy ? 'Generating…' : 'Generate'}</button>
             </section>
 
