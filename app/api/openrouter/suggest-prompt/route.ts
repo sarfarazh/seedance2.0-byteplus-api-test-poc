@@ -1,0 +1,5 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { OPENROUTER_URL } from '@/lib/openrouter';
+const schema=z.object({apiKey:z.string().min(1),logline:z.string().min(1)});
+export async function POST(req:NextRequest){const p=schema.safeParse(await req.json()); if(!p.success) return NextResponse.json({error:'Invalid body'},{status:400}); const r=await fetch(OPENROUTER_URL,{method:'POST',headers:{Authorization:`Bearer ${p.data.apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({model:'anthropic/claude-sonnet-latest',messages:[{role:'system',content:'Return JSON only with keys subject,setting,action,camera,lightingStyle,audio,constraints for realistic live-action cinematic Seedance prompt.'},{role:'user',content:p.data.logline}]})}); const j=await r.json(); if(!r.ok) return NextResponse.json({error:j?.error?.message||'OpenRouter failed',raw:j},{status:r.status}); try{const content=j.choices?.[0]?.message?.content; const structuredPrompt=JSON.parse(content); return NextResponse.json({structuredPrompt,raw:j});}catch{return NextResponse.json({error:'Model output was not valid JSON',raw:j},{status:502});}}
