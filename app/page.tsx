@@ -48,6 +48,25 @@ const logPillClass = (s: string) => {
   return 'pill-muted';
 };
 
+type LogGroup = { type: 'card'; log: AppLog } | { type: 'running'; logs: AppLog[] };
+const groupRunning = (logs: AppLog[]): LogGroup[] => {
+  const out: LogGroup[] = [];
+  let group: AppLog[] | null = null;
+  for (const l of logs) {
+    if (l.status === 'running') {
+      if (!group) {
+        group = [];
+        out.push({ type: 'running', logs: group });
+      }
+      group.push(l);
+    } else {
+      group = null;
+      out.push({ type: 'card', log: l });
+    }
+  }
+  return out;
+};
+
 export default function Home() {
   const [screen, setScreen] = useState<Screen>('generate');
   const [open, setOpen] = useState(false);
@@ -583,35 +602,44 @@ export default function Home() {
         {screen === 'logs' && (
           <>
             <input className="input" placeholder="Filter by type, status, model…" value={logFilter} onChange={e => setLogFilter(e.target.value)} />
-            {filteredLogs.length === 0 ? (
-              <div className="card text-sm text-muted">No logs match.</div>
-            ) : (
-              <section className="card !p-0 overflow-hidden">
-                {filteredLogs.map((l, i) => (
-                  <details key={l.id} className={`group ${i > 0 ? 'border-t border-border' : ''}`}>
-                    <summary className="cursor-pointer list-none flex items-center gap-2 px-3 py-2 hover:bg-surface-2 transition-colors">
-                      <span className={logPillClass(l.status)}>{l.status}</span>
-                      <span className="text-xs text-muted shrink-0 hidden sm:inline">{l.actionType}</span>
-                      <span className="text-xs truncate min-w-0 flex-1">
-                        <span className="text-muted sm:hidden">{l.actionType}: </span>
-                        {l.message}{l.errorDetails ? ` · ${l.errorDetails}` : ''}
-                      </span>
-                      <span className="text-[11px] text-muted shrink-0 tabular">{timeOnly(l.timestamp)}</span>
-                      <svg className="w-3 h-3 text-muted shrink-0 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            {filteredLogs.length === 0 && <div className="card text-sm text-muted">No logs match.</div>}
+            <section className="space-y-2">
+              {groupRunning(filteredLogs).map((g, i) =>
+                g.type === 'card' ? (
+                  <details key={g.log.id} className="card-tight text-sm">
+                    <summary className="cursor-pointer list-none flex items-center gap-2 flex-wrap">
+                      <span className={logPillClass(g.log.status)}>{g.log.status}</span>
+                      <span className="text-xs text-muted">{g.log.actionType}</span>
+                      <span className="ml-auto text-xs text-muted tabular">{dt(g.log.timestamp)}</span>
+                      <span className="basis-full text-xs">{g.log.message}{g.log.errorDetails ? ` — ${g.log.errorDetails}` : ''}</span>
                     </summary>
-                    <div className="border-t border-border px-3 py-2 bg-surface-2/40 space-y-2">
-                      <div className="flex items-center gap-2 text-[11px] text-muted flex-wrap">
-                        <span>{dt(l.timestamp)}</span>
-                        {l.model && <span>· {shortModelLabel(l.model)}</span>}
-                        {l.taskId && <span>· task <span className="font-mono">{l.taskId.slice(0, 8)}…</span></span>}
-                      </div>
-                      {l.errorDetails && <div className="text-xs text-rose-300 break-words">{l.errorDetails}</div>}
-                      <pre className="text-[11px] overflow-auto p-2 rounded bg-bg border border-border max-h-72">{JSON.stringify(l.rawJson, null, 2)}</pre>
+                    <pre className="text-xs overflow-auto mt-2 p-2 rounded bg-bg/60 border border-border max-h-72">{JSON.stringify(g.log.rawJson, null, 2)}</pre>
+                  </details>
+                ) : (
+                  <details key={`run-${i}`} className="card-tight !p-0 overflow-hidden group/run" open={false}>
+                    <summary className="cursor-pointer list-none flex items-center gap-2 px-3 py-2 hover:bg-surface-2 transition-colors">
+                      <span className="pill-amber">running</span>
+                      <span className="text-xs text-muted">{g.logs.length} {g.logs.length === 1 ? 'entry' : 'entries'}</span>
+                      <span className="ml-auto text-[11px] text-muted tabular">{timeOnly(g.logs[g.logs.length - 1].timestamp)} – {timeOnly(g.logs[0].timestamp)}</span>
+                      <svg className="w-3 h-3 text-muted shrink-0 transition-transform group-open/run:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                    </summary>
+                    <div className="border-t border-border">
+                      {g.logs.map((l, j) => (
+                        <details key={l.id} className={`group/row ${j > 0 ? 'border-t border-border' : ''}`}>
+                          <summary className="cursor-pointer list-none flex items-center gap-2 px-3 py-1.5 hover:bg-surface-2 transition-colors">
+                            <span className="text-xs text-muted shrink-0">{l.actionType}</span>
+                            <span className="text-xs truncate min-w-0 flex-1">{l.message}</span>
+                            <span className="text-[11px] text-muted shrink-0 tabular">{timeOnly(l.timestamp)}</span>
+                            <svg className="w-3 h-3 text-muted shrink-0 transition-transform group-open/row:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                          </summary>
+                          <pre className="text-[11px] overflow-auto px-3 py-2 bg-bg/60 border-t border-border max-h-72">{JSON.stringify(l.rawJson, null, 2)}</pre>
+                        </details>
+                      ))}
                     </div>
                   </details>
-                ))}
-              </section>
-            )}
+                )
+              )}
+            </section>
           </>
         )}
       </div>
