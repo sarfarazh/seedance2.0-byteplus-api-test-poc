@@ -37,6 +37,16 @@ const timeAgo = (iso: string) => {
   return `${Math.floor(diff / 86400)}d ago`;
 };
 const fmtNum = (n: number) => n.toLocaleString();
+const timeOnly = (iso: string) => {
+  const d = new Date(iso);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+};
+const logPillClass = (s: string) => {
+  if (s === 'succeeded' || s === 'queued') return 'pill-green';
+  if (s === 'failed' || s === 'error') return 'pill-red';
+  if (s === 'running' || s === 'polling') return 'pill-amber';
+  return 'pill-muted';
+};
 
 export default function Home() {
   const [screen, setScreen] = useState<Screen>('generate');
@@ -573,20 +583,35 @@ export default function Home() {
         {screen === 'logs' && (
           <>
             <input className="input" placeholder="Filter by type, status, model…" value={logFilter} onChange={e => setLogFilter(e.target.value)} />
-            <section className="space-y-2">
-              {filteredLogs.length === 0 && <div className="card text-sm text-muted">No logs match.</div>}
-              {filteredLogs.map(l => (
-                <details key={l.id} className="card-tight text-sm">
-                  <summary className="cursor-pointer list-none flex items-center gap-2 flex-wrap">
-                    <span className={l.status === 'succeeded' || l.status === 'queued' ? 'pill-green' : l.status === 'failed' || l.status === 'error' ? 'pill-red' : l.status === 'running' ? 'pill-amber' : 'pill-muted'}>{l.status}</span>
-                    <span className="text-xs text-muted">{l.actionType}</span>
-                    <span className="ml-auto text-xs text-muted">{dt(l.timestamp)}</span>
-                    <span className="basis-full text-xs">{l.message}{l.errorDetails ? ` — ${l.errorDetails}` : ''}</span>
-                  </summary>
-                  <pre className="text-xs overflow-auto mt-2 p-2 rounded bg-bg/60 border border-border">{JSON.stringify(l.rawJson, null, 2)}</pre>
-                </details>
-              ))}
-            </section>
+            {filteredLogs.length === 0 ? (
+              <div className="card text-sm text-muted">No logs match.</div>
+            ) : (
+              <section className="card !p-0 overflow-hidden">
+                {filteredLogs.map((l, i) => (
+                  <details key={l.id} className={`group ${i > 0 ? 'border-t border-border' : ''}`}>
+                    <summary className="cursor-pointer list-none flex items-center gap-2 px-3 py-2 hover:bg-surface-2 transition-colors">
+                      <span className={logPillClass(l.status)}>{l.status}</span>
+                      <span className="text-xs text-muted shrink-0 hidden sm:inline">{l.actionType}</span>
+                      <span className="text-xs truncate min-w-0 flex-1">
+                        <span className="text-muted sm:hidden">{l.actionType}: </span>
+                        {l.message}{l.errorDetails ? ` · ${l.errorDetails}` : ''}
+                      </span>
+                      <span className="text-[11px] text-muted shrink-0 tabular">{timeOnly(l.timestamp)}</span>
+                      <svg className="w-3 h-3 text-muted shrink-0 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                    </summary>
+                    <div className="border-t border-border px-3 py-2 bg-surface-2/40 space-y-2">
+                      <div className="flex items-center gap-2 text-[11px] text-muted flex-wrap">
+                        <span>{dt(l.timestamp)}</span>
+                        {l.model && <span>· {shortModelLabel(l.model)}</span>}
+                        {l.taskId && <span>· task <span className="font-mono">{l.taskId.slice(0, 8)}…</span></span>}
+                      </div>
+                      {l.errorDetails && <div className="text-xs text-rose-300 break-words">{l.errorDetails}</div>}
+                      <pre className="text-[11px] overflow-auto p-2 rounded bg-bg border border-border max-h-72">{JSON.stringify(l.rawJson, null, 2)}</pre>
+                    </div>
+                  </details>
+                ))}
+              </section>
+            )}
           </>
         )}
       </div>
