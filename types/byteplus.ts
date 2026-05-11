@@ -1,0 +1,1 @@
+export interface BytePlusTaskResponse { id:string; status:string; content?:{video_url?:string}; usage?:{total_tokens?:number; completion_tokens?:number}; resolution?:string; ratio?:string; duration?:number; framespersecond?:number; created_at?:string; updated_at?:string; error?:{message?:string}; }
