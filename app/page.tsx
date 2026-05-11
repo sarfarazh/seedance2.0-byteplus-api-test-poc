@@ -38,9 +38,14 @@ export default function Home() {
   const [open, setOpen] = useState(false);
   const [bp, setBp] = useState('');
   const [or, setOr] = useState('');
+  const [bpDraft, setBpDraft] = useState('');
+  const [orDraft, setOrDraft] = useState('');
+  const [bpEditing, setBpEditing] = useState(false);
+  const [orEditing, setOrEditing] = useState(false);
   const [showBp, setShowBp] = useState(false);
   const [showOr, setShowOr] = useState(false);
-  const [savedAt, setSavedAt] = useState<number | undefined>();
+  const [bpSavedAt, setBpSavedAt] = useState<number | undefined>();
+  const [orSavedAt, setOrSavedAt] = useState<number | undefined>();
   const [logline, setLogline] = useState('');
   const [sp, setSp] = useState<StructuredPrompt>(storage.loadDraft());
   const [choice, setChoice] = useState<ModelChoice>('seedance2');
@@ -58,8 +63,12 @@ export default function Home() {
   const [copiedAt, setCopiedAt] = useState<string | undefined>();
 
   useEffect(() => {
-    setBp(localStorage.getItem(storage.keys.bp) || '');
-    setOr(localStorage.getItem(storage.keys.or) || '');
+    const savedBp = localStorage.getItem(storage.keys.bp) || '';
+    const savedOr = localStorage.getItem(storage.keys.or) || '';
+    setBp(savedBp);
+    setOr(savedOr);
+    setBpEditing(!savedBp);
+    setOrEditing(!savedOr);
     setHistory(storage.loadHistory());
     setLogs(storage.loadLogs());
   }, []);
@@ -74,11 +83,61 @@ export default function Home() {
       return n;
     });
   const updateRun = (id: string, patch: Partial<ActiveRun>) => setActiveRuns(prev => prev.map(r => (r.id === id ? { ...r, ...patch } : r)));
-  const saveKeys = () => {
-    localStorage.setItem(storage.keys.bp, bp);
-    localStorage.setItem(storage.keys.or, or);
-    setSavedAt(Date.now());
-    setTimeout(() => setSavedAt(undefined), 2000);
+  const editBp = () => {
+    setBpDraft(bp);
+    setBpEditing(true);
+    setShowBp(false);
+  };
+  const editOr = () => {
+    setOrDraft(or);
+    setOrEditing(true);
+    setShowOr(false);
+  };
+  const saveBp = () => {
+    const v = bpDraft.trim();
+    setBp(v);
+    localStorage.setItem(storage.keys.bp, v);
+    setBpEditing(!v);
+    setShowBp(false);
+    setBpSavedAt(Date.now());
+    setTimeout(() => setBpSavedAt(undefined), 2000);
+  };
+  const saveOr = () => {
+    const v = orDraft.trim();
+    setOr(v);
+    localStorage.setItem(storage.keys.or, v);
+    setOrEditing(!v);
+    setShowOr(false);
+    setOrSavedAt(Date.now());
+    setTimeout(() => setOrSavedAt(undefined), 2000);
+  };
+  const cancelBp = () => {
+    setBpDraft('');
+    setBpEditing(!bp);
+    setShowBp(false);
+  };
+  const cancelOr = () => {
+    setOrDraft('');
+    setOrEditing(!or);
+    setShowOr(false);
+  };
+  const clearBp = () => {
+    setBp('');
+    setBpDraft('');
+    localStorage.removeItem(storage.keys.bp);
+    setBpEditing(true);
+    setShowBp(false);
+  };
+  const clearOr = () => {
+    setOr('');
+    setOrDraft('');
+    localStorage.removeItem(storage.keys.or);
+    setOrEditing(true);
+    setShowOr(false);
+  };
+  const maskKey = (k: string) => {
+    if (k.length <= 8) return '•'.repeat(Math.max(4, k.length));
+    return `${k.slice(0, 4)}${'•'.repeat(Math.min(12, k.length - 8))}${k.slice(-4)}`;
   };
   const copy = (key: string, text: string) => {
     navigator.clipboard.writeText(text);
@@ -229,30 +288,48 @@ export default function Home() {
       </header>
       <div className="container-narrow pt-3">
         {screen === 'settings' && (
-          <section className="card space-y-4">
-            <div>
+          <>
+            <section className="card space-y-2">
               <div className="section-title">API keys</div>
-              <div className="section-sub">Stored locally in your browser. Never sent anywhere except the relevant API.</div>
-            </div>
-            <div className="field">
-              <label className="label">BytePlus API key</label>
-              <div className="flex gap-2">
-                <input className="input font-mono" type={showBp ? 'text' : 'password'} placeholder="bp_…" value={bp} onChange={e => setBp(e.target.value)} />
-                <button className="btn-secondary shrink-0" onClick={() => setShowBp(v => !v)}>{showBp ? 'Hide' : 'Show'}</button>
-              </div>
-            </div>
-            <div className="field">
-              <label className="label">OpenRouter API key</label>
-              <div className="flex gap-2">
-                <input className="input font-mono" type={showOr ? 'text' : 'password'} placeholder="sk-or-…" value={or} onChange={e => setOr(e.target.value)} />
-                <button className="btn-secondary shrink-0" onClick={() => setShowOr(v => !v)}>{showOr ? 'Hide' : 'Show'}</button>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <button className="btn-primary" onClick={saveKeys}>Save keys</button>
-              {savedAt && <span className="text-xs text-emerald-300">Saved</span>}
-            </div>
-          </section>
+              <div className="section-sub">Stored only in your browser&apos;s localStorage. Sent only to the relevant API (BytePlus or OpenRouter) when you call it.</div>
+            </section>
+
+            <KeyCard
+              title="BytePlus API key"
+              instructions={<>Used to call Seedance 2.0 via BytePlus ModelArk. Create a key in the <a className="text-accent hover:text-accent-hover underline" href="https://console.byteplus.com/ark/region:ark+ap-southeast-1/apiKey" target="_blank" rel="noreferrer">BytePlus ModelArk console</a> (ap-southeast-1 region) and paste it below.</>}
+              placeholder="paste BytePlus API key"
+              saved={bp}
+              editing={bpEditing}
+              draft={bpDraft}
+              setDraft={setBpDraft}
+              show={showBp}
+              toggleShow={() => setShowBp(v => !v)}
+              onEdit={editBp}
+              onSave={saveBp}
+              onCancel={cancelBp}
+              onClear={clearBp}
+              savedAt={bpSavedAt}
+              masked={maskKey(bp)}
+            />
+
+            <KeyCard
+              title="OpenRouter API key"
+              instructions={<>Used for prompt suggestion via Claude on OpenRouter. Create a key at the <a className="text-accent hover:text-accent-hover underline" href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">OpenRouter keys page</a> and paste it below.</>}
+              placeholder="paste OpenRouter API key"
+              saved={or}
+              editing={orEditing}
+              draft={orDraft}
+              setDraft={setOrDraft}
+              show={showOr}
+              toggleShow={() => setShowOr(v => !v)}
+              onEdit={editOr}
+              onSave={saveOr}
+              onCancel={cancelOr}
+              onClear={clearOr}
+              savedAt={orSavedAt}
+              masked={maskKey(or)}
+            />
+          </>
         )}
 
         {screen === 'generate' && (
@@ -393,6 +470,88 @@ export default function Home() {
         )}
       </div>
     </main>
+  );
+}
+
+function KeyCard({
+  title,
+  instructions,
+  placeholder,
+  saved,
+  editing,
+  draft,
+  setDraft,
+  show,
+  toggleShow,
+  onEdit,
+  onSave,
+  onCancel,
+  onClear,
+  savedAt,
+  masked,
+}: {
+  title: string;
+  instructions: React.ReactNode;
+  placeholder: string;
+  saved: string;
+  editing: boolean;
+  draft: string;
+  setDraft: (v: string) => void;
+  show: boolean;
+  toggleShow: () => void;
+  onEdit: () => void;
+  onSave: () => void;
+  onCancel: () => void;
+  onClear: () => void;
+  savedAt?: number;
+  masked: string;
+}) {
+  return (
+    <section className="card space-y-3">
+      <div className="flex items-start gap-2">
+        <div className="flex-1">
+          <div className="section-title">{title}</div>
+          <div className="section-sub mt-1">{instructions}</div>
+        </div>
+        {saved && !editing && <span className="pill-green shrink-0">Saved</span>}
+        {!saved && !editing && <span className="pill-muted shrink-0">Not set</span>}
+        {!saved && editing && <span className="pill-amber shrink-0">Required</span>}
+      </div>
+
+      {!editing && saved && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <code className="flex-1 input font-mono text-muted select-all">{masked}</code>
+          </div>
+          <div className="flex gap-2">
+            <button className="btn-secondary flex-1" onClick={onEdit}>Edit</button>
+            <button className="btn-secondary flex-1 text-rose-300 hover:text-rose-200" onClick={onClear}>Clear</button>
+          </div>
+          {savedAt && <div className="text-xs text-emerald-300">Saved</div>}
+        </div>
+      )}
+
+      {editing && (
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <input
+              className="input font-mono"
+              type={show ? 'text' : 'password'}
+              placeholder={placeholder}
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <button className="btn-secondary shrink-0" onClick={toggleShow}>{show ? 'Hide' : 'Show'}</button>
+          </div>
+          <div className="flex gap-2">
+            <button className="btn-primary flex-1" disabled={!draft.trim()} onClick={onSave}>Save</button>
+            {saved && <button className="btn-secondary flex-1" onClick={onCancel}>Cancel</button>}
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 
