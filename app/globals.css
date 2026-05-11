@@ -2,9 +2,44 @@
 @tailwind components;
 @tailwind utilities;
 
-body { @apply bg-bg text-white; }
-.card { @apply bg-card border border-border rounded-xl p-4; }
-.input { @apply w-full bg-[#0f1420] border border-border rounded-lg p-2 text-sm; }
-.btn { @apply rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed; }
-.btn-primary { @apply btn bg-blue-600 hover:bg-blue-500; }
-.btn-secondary { @apply btn bg-slate-700 hover:bg-slate-600; }
+body { @apply bg-bg text-white font-sans antialiased; }
+
+/* Layout */
+.app-shell { @apply min-h-screen pb-6; }
+.topbar { @apply sticky top-0 z-10 flex items-center gap-3 px-3 py-3 bg-bg/90 backdrop-blur border-b border-border; }
+.container-narrow { @apply max-w-md mx-auto px-3 space-y-3; }
+
+/* Cards */
+.card { @apply bg-card border border-border rounded-2xl p-4 shadow-card; }
+.card-tight { @apply bg-card border border-border rounded-xl p-3 shadow-card; }
+.section-title { @apply text-base font-semibold tracking-tight; }
+.section-sub { @apply text-xs text-muted; }
+
+/* Form */
+.field { @apply space-y-1.5; }
+.label { @apply text-xs font-medium text-muted; }
+.helper { @apply text-xs text-muted; }
+.input { @apply w-full bg-[#0f1420] border border-border rounded-lg px-3 py-2 text-sm placeholder:text-muted/70 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/40; }
+textarea.input { @apply leading-snug; }
+
+/* Buttons */
+.btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed select-none; }
+.btn-primary { @apply btn bg-accent hover:bg-accent-hover text-white; }
+.btn-secondary { @apply btn bg-card-2 hover:bg-border-strong border border-border text-white; }
+.btn-ghost { @apply btn hover:bg-card-2 text-muted hover:text-white; }
+.btn-icon { @apply inline-flex items-center justify-center rounded-lg w-10 h-10 hover:bg-card-2 transition-colors; }
+
+/* Status pills */
+.pill { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium leading-none; }
+.pill-blue { @apply pill bg-blue-600/20 text-blue-300 border border-blue-700/40; }
+.pill-amber { @apply pill bg-amber-600/20 text-amber-300 border border-amber-700/40; }
+.pill-green { @apply pill bg-emerald-600/20 text-emerald-300 border border-emerald-700/40; }
+.pill-red { @apply pill bg-rose-600/20 text-rose-300 border border-rose-700/40; }
+.pill-muted { @apply pill bg-card-2 text-muted border border-border; }
+
+/* Sidebar drawer */
+.scrim { @apply fixed inset-0 z-20 bg-black/60 backdrop-blur-sm; }
+.drawer { @apply fixed z-30 left-0 top-0 h-full w-72 bg-card border-r border-border p-4 space-y-1 shadow-2xl; }
+.nav-item { @apply flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors; }
+.nav-item-active { @apply bg-accent/15 text-white border border-accent/30; }
+.nav-item-inactive { @apply text-muted hover:bg-card-2 hover:text-white border border-transparent; }
