@@ -3,10 +3,14 @@ import { useEffect, useMemo, useState } from 'react';
 import Sidebar, { HamburgerButton, SCREEN_TITLE } from '@/components/sidebar';
 import GenerationStatus, { ActiveRun, RunPhase } from '@/components/generate/generation-status';
 import { AppLog, GenerationRecord, GenerationStatus as GenStatus, ModelChoice, Ratio, Screen, StructuredPrompt } from '@/types/app';
+import { OpenRouterKeyInfo } from '@/types/openrouter';
 import { storage } from '@/lib/storage';
 import { estimate, metrics } from '@/lib/pricing';
 import { toStructuredText } from '@/lib/prompt';
 import { dt, uid } from '@/lib/utils';
+
+const BYTEPLUS_BILLING_URL = 'https://console.byteplus.com/finance';
+const OPENROUTER_KEYS_URL = 'https://openrouter.ai/keys';
 
 const mapModel = (m: ModelChoice) => (m === 'seedance2' ? 'dreamina-seedance-2-0-260128' : 'dreamina-seedance-2-0-fast-260128');
 const SP_LABEL: Record<keyof StructuredPrompt, string> = {
@@ -61,6 +65,10 @@ export default function Home() {
   const [suggestStartedAt, setSuggestStartedAt] = useState<number | undefined>();
   const [logFilter, setLogFilter] = useState('');
   const [copiedAt, setCopiedAt] = useState<string | undefined>();
+  const [orInfo, setOrInfo] = useState<OpenRouterKeyInfo['data'] | undefined>();
+  const [orInfoErr, setOrInfoErr] = useState<string | undefined>();
+  const [orInfoLoading, setOrInfoLoading] = useState(false);
+  const [orInfoFetchedAt, setOrInfoFetchedAt] = useState<number | undefined>();
 
   useEffect(() => {
     const savedBp = localStorage.getItem(storage.keys.bp) || '';
@@ -272,6 +280,39 @@ export default function Home() {
     setBusy(false);
   };
 
+  const fetchOrInfo = async () => {
+    if (!or) {
+      setOrInfo(undefined);
+      setOrInfoErr('Add an OpenRouter key in Settings to see balance.');
+      return;
+    }
+    setOrInfoLoading(true);
+    setOrInfoErr(undefined);
+    try {
+      const r = await fetch('/api/openrouter/key-info', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiKey: or }) });
+      const j = await r.json();
+      if (!r.ok) {
+        setOrInfoErr(j?.error || `Request failed (${r.status})`);
+        setOrInfo(undefined);
+      } else {
+        setOrInfo(j.data);
+        setOrInfoFetchedAt(Date.now());
+      }
+    } catch (e) {
+      setOrInfoErr(e instanceof Error ? e.message : 'Network error');
+      setOrInfo(undefined);
+    } finally {
+      setOrInfoLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (screen === 'usage' && or && !orInfoLoading && (!orInfoFetchedAt || Date.now() - orInfoFetchedAt > 60000)) {
+      fetchOrInfo();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, or]);
+
   const m = useMemo(() => metrics(usage.resourceTokensConsumed, usage.successVideos), [usage]);
   const filteredLogs = useMemo(() => {
     if (!logFilter) return logs;
@@ -431,8 +472,15 @@ export default function Home() {
               <Stat label="Failed" value={fmtNum(usage.failedVideos)} tone="red" />
               <Stat label="USD used" value={`$${usage.usdUsed.toFixed(4)}`} />
             </section>
+
             <section className="card space-y-3">
-              <div className="section-title">Resource pack</div>
+              <div className="flex items-start gap-2">
+                <div className="flex-1">
+                  <div className="section-title">BytePlus resource pack</div>
+                  <div className="section-sub">Local estimate from token usage returned by each generation. For the authoritative balance, check the BytePlus console.</div>
+                </div>
+                <a className="btn-secondary shrink-0 text-xs" href={BYTEPLUS_BILLING_URL} target="_blank" rel="noreferrer">Open ↗</a>
+              </div>
               <ProgressBar consumed={usage.resourceTokensConsumed} total={7_000_000} />
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <KV k="Consumed" v={`${fmtNum(usage.resourceTokensConsumed)} tk`} />
@@ -441,9 +489,47 @@ export default function Home() {
                 <KV k="Approx videos left" v={m.approxVideos ?? '—'} />
               </div>
             </section>
+
+            <section className="card space-y-3">
+              <div className="flex items-start gap-2">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <div className="section-title">OpenRouter</div>
+                    {orInfo && (orInfo.is_free_tier ? <span className="pill-muted">Free tier</span> : <span className="pill-green">Paid</span>)}
+                  </div>
+                  <div className="section-sub">Live balance from <code className="font-mono">/api/v1/key</code>.{orInfoFetchedAt && ` Last fetched ${timeAgo(new Date(orInfoFetchedAt).toISOString())}.`}</div>
+                </div>
+                <button className="btn-secondary shrink-0 text-xs" onClick={fetchOrInfo} disabled={orInfoLoading}>{orInfoLoading ? '…' : 'Refresh'}</button>
+                <a className="btn-secondary shrink-0 text-xs" href={OPENROUTER_KEYS_URL} target="_blank" rel="noreferrer">Open ↗</a>
+              </div>
+              {orInfoErr && <div className="text-xs text-rose-300 break-words">{orInfoErr}</div>}
+              {orInfo && (
+                <>
+                  {orInfo.limit !== null && orInfo.limit_remaining !== null ? (
+                    <>
+                      <ProgressBar consumed={orInfo.limit - orInfo.limit_remaining} total={orInfo.limit} />
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <KV k="Remaining" v={`$${orInfo.limit_remaining.toFixed(4)}`} />
+                        <KV k="Limit" v={`$${orInfo.limit.toFixed(4)}`} />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-xs text-muted">No credit limit set on this key (pay-as-you-go or BYOK).</div>
+                  )}
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <KV k="Today" v={`$${orInfo.usage_daily.toFixed(4)}`} />
+                    <KV k="This week" v={`$${orInfo.usage_weekly.toFixed(4)}`} />
+                    <KV k="This month" v={`$${orInfo.usage_monthly.toFixed(4)}`} />
+                    <KV k="All time" v={`$${orInfo.usage.toFixed(4)}`} />
+                  </div>
+                </>
+              )}
+              {!orInfo && !orInfoErr && !orInfoLoading && <div className="text-xs text-muted">Click Refresh to load.</div>}
+            </section>
+
             <section className="card space-y-2 text-xs">
-              <div className="section-title">Tokens</div>
-              <KV k="Total billed tokens" v={fmtNum(usage.totalTokens)} />
+              <div className="section-title">Local tokens</div>
+              <KV k="Total billed tokens (BytePlus)" v={fmtNum(usage.totalTokens)} />
               <KV k="Total completion tokens" v={fmtNum(usage.totalCompletionTokens)} />
             </section>
           </>
