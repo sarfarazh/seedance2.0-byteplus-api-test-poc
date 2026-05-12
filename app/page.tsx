@@ -654,6 +654,26 @@ export default function Home() {
               <Stat label="USD used" value={`$${usage.usdUsed.toFixed(4)}`} />
             </section>
 
+            <section className="card space-y-2">
+              <div className="section-title">Export data</div>
+              <div className="section-sub">Downloads a JSON file with your full usage totals, generation history, and API logs from this browser.</div>
+              <button
+                className="btn-secondary w-full"
+                onClick={() => {
+                  const data = { exportedAt: new Date().toISOString(), usage, history, logs };
+                  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `seedance-export-${Date.now()}.json`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                Download export.json
+              </button>
+            </section>
+
             <section className="card space-y-3">
               <div className="flex items-start gap-2">
                 <div className="flex-1">
