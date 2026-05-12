@@ -1,9 +1,9 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Sidebar, { HamburgerButton, SCREEN_TITLE } from '@/components/sidebar';
 import GenerationStatus, { ActiveRun, RunPhase } from '@/components/generate/generation-status';
 import StoryScreen from '@/components/story/story-screen';
-import { AppLog, BudgetStatus, GenerationRecord, GenerationStatus as GenStatus, ModelChoice, Ratio, Screen, StructuredPrompt } from '@/types/app';
+import { AppLog, BudgetStatus, GenerationRecord, GenerationStatus as GenStatus, ModelChoice, Ratio, Screen, StructuredPrompt, UsageTotals } from '@/types/app';
 import { storage } from '@/lib/storage';
 import { estimate, metrics } from '@/lib/pricing';
 import { estimateGenerationCost } from '@/lib/estimate-cost';
@@ -81,7 +81,8 @@ export default function Home() {
   const [bpSavedAt, setBpSavedAt] = useState<number | undefined>();
   const [orSavedAt, setOrSavedAt] = useState<number | undefined>();
   const [logline, setLogline] = useState('');
-  const [sp, setSp] = useState<StructuredPrompt>(storage.loadDraft());
+  const [sp, setSp] = useState<StructuredPrompt>({ subject: '', setting: '', action: '', camera: '', lightingStyle: '', audio: '', constraints: '' });
+  const spInitialized = useRef(false);
   const [choice, setChoice] = useState<ModelChoice>('seedance2');
   const [duration, setDuration] = useState<4 | 6>(4);
   const [ratio, setRatio] = useState<Ratio>('9:16');
@@ -89,7 +90,7 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState<GenerationRecord[]>([]);
   const [logs, setLogs] = useState<AppLog[]>([]);
-  const [usage, setUsage] = useState(storage.loadUsage());
+  const [usage, setUsage] = useState<UsageTotals>({ totalVideos: 0, successVideos: 0, failedVideos: 0, totalTokens: 0, totalCompletionTokens: 0, resourceTokensConsumed: 0, usdUsed: 0 });
   const [activeRuns, setActiveRuns] = useState<ActiveRun[]>([]);
   const [suggesting, setSuggesting] = useState(false);
   const [suggestStartedAt, setSuggestStartedAt] = useState<number | undefined>();
@@ -109,6 +110,9 @@ export default function Home() {
     setOrEditing(!savedOr);
     setHistory(storage.loadHistory());
     setLogs(storage.loadLogs());
+    setSp(storage.loadDraft());
+    setUsage(storage.loadUsage());
+    spInitialized.current = true;
     let cid = localStorage.getItem(storage.keys.clientId) || '';
     if (!cid) {
       cid = crypto.randomUUID();
@@ -125,6 +129,7 @@ export default function Home() {
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
   useEffect(() => {
+    if (!spInitialized.current) return;
     localStorage.setItem(storage.keys.draft, JSON.stringify(sp));
   }, [sp]);
   useEffect(() => {
@@ -698,7 +703,7 @@ export default function Home() {
               <div className="flex items-start gap-2">
                 <div className="flex-1">
                   <div className="section-title">BytePlus app budget</div>
-                  <div className="section-sub">Live spend tracked server-side.{budgetFetchedAt && ` Last fetched ${timeAgo(new Date(budgetFetchedAt).toISOString())}.`}</div>
+                  <div className="section-sub">App-wide spend across all users and sessions, tracked server-side.{budgetFetchedAt && ` Last fetched ${timeAgo(new Date(budgetFetchedAt).toISOString())}.`}</div>
                 </div>
                 <button className="btn-secondary shrink-0 text-xs" onClick={fetchBudgetStatus} disabled={budgetLoading}>{budgetLoading ? '…' : 'Refresh'}</button>
                 <a className="btn-secondary shrink-0 text-xs" href={BYTEPLUS_BILLING_URL} target="_blank" rel="noreferrer">Console ↗</a>
