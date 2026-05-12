@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getGlobalSpend, getLimit } from '@/lib/redis';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const byteplusSpend = await getGlobalSpend('byteplus');
   const byteplusLimit = getLimit('BYTEPLUS_USD_LIMIT');
