@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-const schema = z.object({ apiKey: z.string().min(1) });
+const schema = z.object({ clientApiKey: z.string().optional() });
 
 export async function POST(req: NextRequest) {
   const p = schema.safeParse(await req.json());
   if (!p.success) return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
+  const apiKey = p.data.clientApiKey ?? process.env.OPENROUTER_API_KEY;
+  if (!apiKey) return NextResponse.json({ error: 'Server misconfigured: missing OPENROUTER_API_KEY' }, { status: 500 });
   const r = await fetch('https://openrouter.ai/api/v1/key', {
-    headers: { Authorization: `Bearer ${p.data.apiKey}` },
+    headers: { Authorization: `Bearer ${apiKey}` },
     cache: 'no-store',
   });
   const j = await r.json();
