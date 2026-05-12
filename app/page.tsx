@@ -2,8 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Sidebar, { HamburgerButton, SCREEN_TITLE } from '@/components/sidebar';
 import GenerationStatus, { ActiveRun, RunPhase } from '@/components/generate/generation-status';
-import { AppLog, GenerationRecord, GenerationStatus as GenStatus, ModelChoice, Ratio, Screen, StructuredPrompt } from '@/types/app';
-import { OpenRouterKeyInfo } from '@/types/openrouter';
+import { AppLog, BudgetStatus, GenerationRecord, GenerationStatus as GenStatus, ModelChoice, Ratio, Screen, StructuredPrompt } from '@/types/app';
 import { storage } from '@/lib/storage';
 import { estimate, metrics } from '@/lib/pricing';
 import { estimateGenerationCost } from '@/lib/estimate-cost';
@@ -95,10 +94,10 @@ export default function Home() {
   const [suggestStartedAt, setSuggestStartedAt] = useState<number | undefined>();
   const [logFilter, setLogFilter] = useState('');
   const [copiedAt, setCopiedAt] = useState<string | undefined>();
-  const [orInfo, setOrInfo] = useState<OpenRouterKeyInfo['data'] | undefined>();
-  const [orInfoErr, setOrInfoErr] = useState<string | undefined>();
-  const [orInfoLoading, setOrInfoLoading] = useState(false);
-  const [orInfoFetchedAt, setOrInfoFetchedAt] = useState<number | undefined>();
+  const [clientId, setClientId] = useState('');
+  const [budgetStatus, setBudgetStatus] = useState<BudgetStatus | null>(null);
+  const [budgetLoading, setBudgetLoading] = useState(false);
+  const [budgetFetchedAt, setBudgetFetchedAt] = useState<number | undefined>();
 
   useEffect(() => {
     const savedBp = localStorage.getItem(storage.keys.bp) || '';
@@ -109,6 +108,12 @@ export default function Home() {
     setOrEditing(!savedOr);
     setHistory(storage.loadHistory());
     setLogs(storage.loadLogs());
+    let cid = localStorage.getItem(storage.keys.clientId) || '';
+    if (!cid) {
+      cid = crypto.randomUUID();
+      localStorage.setItem(storage.keys.clientId, cid);
+    }
+    setClientId(cid);
   }, []);
   useEffect(() => {
     localStorage.setItem(storage.keys.draft, JSON.stringify(sp));
@@ -187,10 +192,16 @@ export default function Home() {
     setBusy(true);
     setSuggesting(true);
     setSuggestStartedAt(Date.now());
-    const r = await fetch('/api/openrouter/suggest-prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiKey: or, logline }) });
+    const body: Record<string, unknown> = { logline };
+    if (clientId) body.clientId = clientId;
+    if (or) body.clientApiKey = or;
+    const r = await fetch('/api/openrouter/suggest-prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const j = await r.json();
     if (!r.ok) {
-      addLog({ id: uid(), timestamp: new Date().toISOString(), actionType: 'openrouter', status: 'failed', message: 'Suggest failed', errorDetails: j.error, rawJson: j });
+      const isBudget = r.status === 402;
+      const msg = isBudget ? (j.error || 'OpenRouter budget limit reached') : (j.error || 'Suggest failed');
+      addLog({ id: uid(), timestamp: new Date().toISOString(), actionType: 'openrouter', status: 'failed', message: msg, errorDetails: j.error, rawJson: j });
+      if (isBudget && j.suggestByok) setScreen('settings');
       setSuggesting(false);
       setBusy(false);
       return;
@@ -208,13 +219,19 @@ export default function Home() {
     setActiveRuns(prev => [...prev, { id: runId, model, startedAt: Date.now(), phase: 'creating', pollCount: 0 }]);
     addLog({ id: uid(), timestamp: rec.timestamp, actionType: 'byteplus.create', status: 'running', message: 'Creating task', model, rawJson: { model } });
     const payload = { model, content: [{ type: 'text', text: toStructuredText(sp) }], generate_audio: audio, ratio, duration, watermark: false, resolution: '480p' };
-    const cr = await fetch('/api/byteplus/create-task', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiKey: bp, payload }) });
+    const createBody: Record<string, unknown> = { payload };
+    if (clientId) createBody.clientId = clientId;
+    if (bp) createBody.clientApiKey = bp;
+    const cr = await fetch('/api/byteplus/create-task', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(createBody) });
     const cj = await cr.json();
     if (!cr.ok) {
       rec.status = 'failed';
-      rec.error = cj.error;
-      addLog({ id: uid(), timestamp: new Date().toISOString(), actionType: 'byteplus.create', status: 'failed', message: 'Create task failed', model, errorDetails: cj.error, rawJson: cj });
-      updateRun(runId, { phase: 'failed', error: cj.error || 'Create task failed' });
+      const isBudget = cr.status === 402;
+      const createErr = isBudget ? (cj.error || 'BytePlus app budget limit reached') : (cj.error || 'Create task failed');
+      rec.error = createErr;
+      addLog({ id: uid(), timestamp: new Date().toISOString(), actionType: 'byteplus.create', status: 'failed', message: createErr, model, errorDetails: cj.error, rawJson: cj });
+      updateRun(runId, { phase: 'failed', error: rec.error });
+      if (isBudget && cj.suggestByok) setScreen('settings');
       finalize(rec);
       return;
     }
@@ -234,7 +251,10 @@ export default function Home() {
     let pollCount = 0;
     while (Date.now() - start < 600000) {
       await new Promise(r => setTimeout(r, 10000));
-      const gr = await fetch('/api/byteplus/get-task', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiKey: bp, taskId: rec.taskId }) });
+      const pollBody: Record<string, unknown> = { taskId: rec.taskId, model };
+      if (clientId) pollBody.clientId = clientId;
+      if (bp) pollBody.clientApiKey = bp;
+      const gr = await fetch('/api/byteplus/get-task', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pollBody) });
       const gj = await gr.json();
       if (!gr.ok) {
         pollErrors++;
@@ -257,7 +277,10 @@ export default function Home() {
         rec.videoUrl = gj.content?.video_url;
         rec.usageTotalTokens = gj.usage?.total_tokens ?? 0;
         rec.usageCompletionTokens = gj.usage?.completion_tokens ?? 0;
-        rec.estimatedCostUsd = estimate(model, rec.usageTotalTokens ?? 0).usd;
+        rec.estimatedCostUsd = gj._spendMeta?.addedUsd ?? estimate(model, rec.usageTotalTokens ?? 0).usd;
+        if (gj._spendMeta && !gj._spendMeta.byok) {
+          setBudgetStatus(prev => prev ? { ...prev, byteplus: { ...prev.byteplus, spendUsd: gj._spendMeta.totalSpendUsd, remainingUsd: Math.max(0, prev.byteplus.limitUsd - gj._spendMeta.totalSpendUsd), overLimit: gj._spendMeta.totalSpendUsd >= prev.byteplus.limitUsd } } : prev);
+        }
         updateRun(runId, { phase: 'succeeded', videoUrl: rec.videoUrl });
         finalize(rec);
         return;
@@ -310,38 +333,28 @@ export default function Home() {
     setBusy(false);
   };
 
-  const fetchOrInfo = async () => {
-    if (!or) {
-      setOrInfo(undefined);
-      setOrInfoErr('Add an OpenRouter key in Settings to see balance.');
-      return;
-    }
-    setOrInfoLoading(true);
-    setOrInfoErr(undefined);
+  const fetchBudgetStatus = async () => {
+    setBudgetLoading(true);
     try {
-      const r = await fetch('/api/openrouter/key-info', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiKey: or }) });
+      const r = await fetch('/api/budget-status');
       const j = await r.json();
-      if (!r.ok) {
-        setOrInfoErr(j?.error || `Request failed (${r.status})`);
-        setOrInfo(undefined);
-      } else {
-        setOrInfo(j.data);
-        setOrInfoFetchedAt(Date.now());
+      if (r.ok) {
+        setBudgetStatus(j);
+        setBudgetFetchedAt(Date.now());
       }
-    } catch (e) {
-      setOrInfoErr(e instanceof Error ? e.message : 'Network error');
-      setOrInfo(undefined);
+    } catch {
+      // fail silently — budget display is informational
     } finally {
-      setOrInfoLoading(false);
+      setBudgetLoading(false);
     }
   };
 
   useEffect(() => {
-    if (screen === 'usage' && or && !orInfoLoading && (!orInfoFetchedAt || Date.now() - orInfoFetchedAt > 60000)) {
-      fetchOrInfo();
+    if (screen === 'usage' && !budgetLoading && (!budgetFetchedAt || Date.now() - budgetFetchedAt > 60000)) {
+      fetchBudgetStatus();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screen, or]);
+  }, [screen]);
 
   const m = useMemo(() => metrics(usage.resourceTokensConsumed, usage.successVideos), [usage]);
 
@@ -387,17 +400,13 @@ export default function Home() {
               </div>
             </section>
 
-            {(!bp || !or) && (
+            {budgetStatus?.byteplus?.overLimit && !bp && (
               <section className="card border-amber-500/40 bg-amber-500/5 space-y-2">
                 <div className="flex items-center gap-2">
-                  <span className="pill-amber">Setup required</span>
+                  <span className="pill-amber">App budget exhausted</span>
                 </div>
-                <p className="text-sm leading-relaxed">
-                  {!bp && !or && 'Add your BytePlus and OpenRouter API keys before generating.'}
-                  {bp && !or && 'Add your OpenRouter API key to use prompt suggestion.'}
-                  {!bp && or && 'Add your BytePlus API key to generate videos.'}
-                </p>
-                <button className="btn-secondary w-full" onClick={() => setScreen('settings')}>Open Settings</button>
+                <p className="text-sm leading-relaxed">The app&apos;s BytePlus budget has been used up. Add your own API key in Settings to keep generating.</p>
+                <button className="btn-secondary w-full" onClick={() => setScreen('settings')}>Add your own key</button>
               </section>
             )}
 
@@ -441,14 +450,50 @@ export default function Home() {
 
         {screen === 'settings' && (
           <>
+            <section className="card space-y-3">
+              <div className="section-title">App budget</div>
+              <div className="section-sub">API keys are managed server-side. The app covers usage up to these limits.</div>
+              {budgetStatus ? (
+                <div className="space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="text-muted">BytePlus</span>
+                      <span className={budgetStatus.byteplus.overLimit ? 'text-rose-300' : 'text-muted'}>
+                        ${budgetStatus.byteplus.spendUsd.toFixed(4)} / ${budgetStatus.byteplus.limitUsd?.toFixed(2) ?? '∞'}
+                      </span>
+                    </div>
+                    {budgetStatus.byteplus.limitUsd != null && (
+                      <ProgressBar consumed={budgetStatus.byteplus.spendUsd} total={budgetStatus.byteplus.limitUsd} />
+                    )}
+                    {budgetStatus.byteplus.overLimit && <div className="text-xs text-rose-300 mt-1">Budget exhausted — add your own key below to continue.</div>}
+                  </div>
+                  {'data' in budgetStatus.openrouter && budgetStatus.openrouter.data && (
+                    <div>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="text-muted">OpenRouter (app key)</span>
+                        {budgetStatus.openrouter.data.limit != null && budgetStatus.openrouter.data.limit_remaining != null && (
+                          <span className="text-muted">${(budgetStatus.openrouter.data.limit - budgetStatus.openrouter.data.limit_remaining).toFixed(4)} / ${budgetStatus.openrouter.data.limit.toFixed(2)}</span>
+                        )}
+                      </div>
+                      {budgetStatus.openrouter.data.limit != null && budgetStatus.openrouter.data.limit_remaining != null && (
+                        <ProgressBar consumed={budgetStatus.openrouter.data.limit - budgetStatus.openrouter.data.limit_remaining} total={budgetStatus.openrouter.data.limit} />
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <button className="btn-secondary text-xs" onClick={fetchBudgetStatus} disabled={budgetLoading}>{budgetLoading ? 'Loading…' : 'Load budget status'}</button>
+              )}
+            </section>
+
             <section className="card space-y-2">
-              <div className="section-title">API keys</div>
-              <div className="section-sub">Stored only in your browser&apos;s localStorage. Sent only to the relevant API (BytePlus or OpenRouter) when you call it.</div>
+              <div className="section-title">Your own keys (BYOK)</div>
+              <div className="section-sub">Optional. When set, your keys are used instead of the app&apos;s — bypassing the app budget. Stored only in your browser, never sent to our servers.</div>
             </section>
 
             <KeyCard
               title="BytePlus API key"
-              instructions={<>Used to call Seedance 2.0 via BytePlus ModelArk. Create a key in the <a className="link" href="https://console.byteplus.com/ark/region:ark+ap-southeast-1/apiKey" target="_blank" rel="noreferrer">BytePlus ModelArk console</a> (ap-southeast-1 region) and paste it below.</>}
+              instructions={<>Create a key in the <a className="link" href="https://console.byteplus.com/ark/region:ark+ap-southeast-1/apiKey" target="_blank" rel="noreferrer">BytePlus ModelArk console</a> (ap-southeast-1 region).</>}
               placeholder="paste BytePlus API key"
               saved={bp}
               editing={bpEditing}
@@ -466,7 +511,7 @@ export default function Home() {
 
             <KeyCard
               title="OpenRouter API key"
-              instructions={<>Used for prompt suggestion via Claude on OpenRouter. Create a key at the <a className="link" href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">OpenRouter keys page</a> and paste it below.</>}
+              instructions={<>Create a key at the <a className="link" href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">OpenRouter keys page</a>.</>}
               placeholder="paste OpenRouter API key"
               saved={or}
               editing={orEditing}
@@ -492,7 +537,7 @@ export default function Home() {
                 <div className="section-sub">A one-line idea. The prompt suggester expands it into the seven fields below.</div>
               </div>
               <textarea className="input min-h-20" placeholder="e.g. A cyclist races a thunderstorm down a coastal road at dusk." value={logline} onChange={e => setLogline(e.target.value)} />
-              <button className="btn-primary w-full" disabled={!or || busy || !logline} onClick={suggest}>{suggesting ? 'Suggesting…' : 'Suggest structured prompt'}</button>
+              <button className="btn-primary w-full" disabled={busy || !logline} onClick={suggest}>{suggesting ? 'Suggesting…' : 'Suggest structured prompt'}</button>
             </section>
 
             <section className="card space-y-3">
@@ -567,7 +612,10 @@ export default function Home() {
                   </span>
                 </div>
               </div>
-              <button className="btn-primary w-full" disabled={!bp || !or || busy} onClick={generate}>{busy ? 'Generating…' : 'Generate'}</button>
+              {!bp && budgetStatus?.byteplus?.overLimit && (
+                <div className="text-xs text-amber-300 leading-relaxed">App&apos;s BytePlus budget is exhausted. Add your own BytePlus key in <button className="link" onClick={() => setScreen('settings')}>Settings</button> to continue.</div>
+              )}
+              <button className="btn-primary w-full" disabled={busy || (!bp && (budgetStatus?.byteplus?.overLimit ?? false))} onClick={generate}>{busy ? 'Generating…' : 'Generate'}</button>
             </section>
 
             <GenerationStatus runs={activeRuns} suggesting={suggesting} suggestStartedAt={suggestStartedAt} />
@@ -609,55 +657,67 @@ export default function Home() {
             <section className="card space-y-3">
               <div className="flex items-start gap-2">
                 <div className="flex-1">
-                  <div className="section-title">BytePlus resource pack</div>
-                  <div className="section-sub">Local estimate from token usage returned by each generation. For the authoritative balance, check the BytePlus console.</div>
+                  <div className="section-title">BytePlus app budget</div>
+                  <div className="section-sub">Live spend tracked server-side.{budgetFetchedAt && ` Last fetched ${timeAgo(new Date(budgetFetchedAt).toISOString())}.`}</div>
                 </div>
-                <a className="btn-secondary shrink-0 text-xs" href={BYTEPLUS_BILLING_URL} target="_blank" rel="noreferrer">Open ↗</a>
+                <button className="btn-secondary shrink-0 text-xs" onClick={fetchBudgetStatus} disabled={budgetLoading}>{budgetLoading ? '…' : 'Refresh'}</button>
+                <a className="btn-secondary shrink-0 text-xs" href={BYTEPLUS_BILLING_URL} target="_blank" rel="noreferrer">Console ↗</a>
               </div>
-              <ProgressBar consumed={usage.resourceTokensConsumed} total={7_000_000} />
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <KV k="Consumed" v={`${fmtNum(usage.resourceTokensConsumed)} tk`} />
-                <KV k="Remaining" v={`${fmtNum(m.remainingTokens)} tk`} />
-                <KV k="USD remaining" v={`$${m.remainingUsd.toFixed(4)}`} />
-                <KV k="Approx videos left" v={m.approxVideos ?? '—'} />
-              </div>
+              {budgetStatus?.byteplus && (
+                <>
+                  {budgetStatus.byteplus.limitUsd != null && (
+                    <ProgressBar consumed={budgetStatus.byteplus.spendUsd} total={budgetStatus.byteplus.limitUsd} />
+                  )}
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <KV k="Spent" v={`$${budgetStatus.byteplus.spendUsd.toFixed(4)}`} />
+                    <KV k="Limit" v={budgetStatus.byteplus.limitUsd != null ? `$${budgetStatus.byteplus.limitUsd.toFixed(2)}` : '∞'} />
+                    <KV k="Remaining" v={budgetStatus.byteplus.remainingUsd != null ? `$${budgetStatus.byteplus.remainingUsd.toFixed(4)}` : '∞'} />
+                    <KV k="Over limit" v={budgetStatus.byteplus.overLimit ? 'Yes' : 'No'} />
+                  </div>
+                </>
+              )}
+              {!budgetStatus && !budgetLoading && <div className="text-xs text-muted">Click Refresh to load.</div>}
             </section>
 
             <section className="card space-y-3">
               <div className="flex items-start gap-2">
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <div className="section-title">OpenRouter</div>
-                    {orInfo && (orInfo.is_free_tier ? <span className="pill-muted">Free tier</span> : <span className="pill-green">Paid</span>)}
+                    <div className="section-title">OpenRouter (app key)</div>
+                    {'data' in (budgetStatus?.openrouter ?? {}) && (budgetStatus?.openrouter as { data: { is_free_tier: boolean } })?.data?.is_free_tier ? <span className="pill-muted">Free tier</span> : null}
                   </div>
-                  <div className="section-sub">Live balance from <code className="font-mono">/api/v1/key</code>.{orInfoFetchedAt && ` Last fetched ${timeAgo(new Date(orInfoFetchedAt).toISOString())}.`}</div>
+                  <div className="section-sub">Live balance from <code className="font-mono">/api/v1/key</code>.</div>
                 </div>
-                <button className="btn-secondary shrink-0 text-xs" onClick={fetchOrInfo} disabled={orInfoLoading}>{orInfoLoading ? '…' : 'Refresh'}</button>
+                <button className="btn-secondary shrink-0 text-xs" onClick={fetchBudgetStatus} disabled={budgetLoading}>{budgetLoading ? '…' : 'Refresh'}</button>
                 <a className="btn-secondary shrink-0 text-xs" href={OPENROUTER_KEYS_URL} target="_blank" rel="noreferrer">Open ↗</a>
               </div>
-              {orInfoErr && <div className="text-xs text-rose-300 break-words">{orInfoErr}</div>}
-              {orInfo && (
-                <>
-                  {orInfo.limit !== null && orInfo.limit_remaining !== null ? (
-                    <>
-                      <ProgressBar consumed={orInfo.limit - orInfo.limit_remaining} total={orInfo.limit} />
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <KV k="Remaining" v={`$${orInfo.limit_remaining.toFixed(4)}`} />
-                        <KV k="Limit" v={`$${orInfo.limit.toFixed(4)}`} />
-                      </div>
-                    </>
-                  ) : (
-                    <div className="text-xs text-muted">No credit limit set on this key (pay-as-you-go or BYOK).</div>
-                  )}
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <KV k="Today" v={`$${orInfo.usage_daily.toFixed(4)}`} />
-                    <KV k="This week" v={`$${orInfo.usage_weekly.toFixed(4)}`} />
-                    <KV k="This month" v={`$${orInfo.usage_monthly.toFixed(4)}`} />
-                    <KV k="All time" v={`$${orInfo.usage.toFixed(4)}`} />
-                  </div>
-                </>
-              )}
-              {!orInfo && !orInfoErr && !orInfoLoading && <div className="text-xs text-muted">Click Refresh to load.</div>}
+              {'error' in (budgetStatus?.openrouter ?? {}) && <div className="text-xs text-rose-300">{(budgetStatus?.openrouter as { error: string })?.error}</div>}
+              {'data' in (budgetStatus?.openrouter ?? {}) && (() => {
+                const orData = (budgetStatus?.openrouter as { data: import('@/types/openrouter').OpenRouterKeyInfo['data'] })?.data;
+                if (!orData) return null;
+                return (
+                  <>
+                    {orData.limit !== null && orData.limit_remaining !== null ? (
+                      <>
+                        <ProgressBar consumed={orData.limit - orData.limit_remaining} total={orData.limit} />
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <KV k="Remaining" v={`$${orData.limit_remaining.toFixed(4)}`} />
+                          <KV k="Limit" v={`$${orData.limit.toFixed(4)}`} />
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-xs text-muted">No credit limit set on this key.</div>
+                    )}
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <KV k="Today" v={`$${orData.usage_daily.toFixed(4)}`} />
+                      <KV k="This week" v={`$${orData.usage_weekly.toFixed(4)}`} />
+                      <KV k="This month" v={`$${orData.usage_monthly.toFixed(4)}`} />
+                      <KV k="All time" v={`$${orData.usage.toFixed(4)}`} />
+                    </div>
+                  </>
+                );
+              })()}
+              {!budgetStatus && !budgetLoading && <div className="text-xs text-muted">Click Refresh to load.</div>}
             </section>
 
             <section className="card space-y-2 text-xs">
