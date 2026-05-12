@@ -114,10 +114,24 @@ export default function Home() {
       localStorage.setItem(storage.keys.clientId, cid);
     }
     setClientId(cid);
+    const initHash = window.location.hash.slice(1) as Screen;
+    if (['home', 'generate', 'history', 'usage', 'logs', 'settings'].includes(initHash)) setScreen(initHash);
+    const onHashChange = () => {
+      const h = window.location.hash.slice(1) as Screen;
+      setScreen(['home', 'generate', 'history', 'usage', 'logs', 'settings'].includes(h) ? h : 'home');
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
   useEffect(() => {
     localStorage.setItem(storage.keys.draft, JSON.stringify(sp));
   }, [sp]);
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (hash === screen) return;
+    if (screen === 'home') window.history.replaceState(null, '', window.location.pathname);
+    else window.location.hash = screen;
+  }, [screen]);
 
   const addLog = (l: AppLog) =>
     setLogs(prev => {
@@ -838,7 +852,7 @@ function KeyCard({
         </div>
         {saved && !editing && <span className="pill-green shrink-0">Saved</span>}
         {!saved && !editing && <span className="pill-muted shrink-0">Not set</span>}
-        {!saved && editing && <span className="pill-amber shrink-0">Required</span>}
+        {!saved && editing && <span className="pill-muted shrink-0">Optional</span>}
       </div>
 
       {!editing && saved && (
