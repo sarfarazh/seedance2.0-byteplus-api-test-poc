@@ -29,7 +29,7 @@ h1, h2, h3, h4 { letter-spacing: -0.012em; }
 /* Form */
 .field { @apply space-y-1.5; }
 .input { @apply w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm placeholder:text-muted/60 focus:outline-none focus:border-text/40 focus:bg-surface-3 transition-colors; }
-textarea.input { @apply leading-snug; }
+textarea.input { @apply leading-snug resize-none; field-sizing: content; min-height: 2.25rem; }
 
 /* Links */
 .link { @apply text-accent underline underline-offset-[3px] decoration-accent/40 hover:decoration-accent transition-colors; }

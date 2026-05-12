@@ -564,7 +564,7 @@ export default function Home() {
               {(Object.keys(SP_LABEL) as (keyof StructuredPrompt)[]).map(k => (
                 <div key={k} className="field">
                   <label className="label">{SP_LABEL[k]}</label>
-                  <input className="input" value={sp[k]} onChange={e => setSp({ ...sp, [k]: e.target.value })} placeholder={`Describe ${SP_LABEL[k].toLowerCase()}`} />
+                  <textarea className="input" value={sp[k]} onChange={e => setSp({ ...sp, [k]: e.target.value })} placeholder={`Describe ${SP_LABEL[k].toLowerCase()}`} />
                 </div>
               ))}
               <div className="flex gap-2 flex-wrap">
