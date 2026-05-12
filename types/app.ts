@@ -1,4 +1,4 @@
-export type Screen = 'home' | 'generate' | 'history' | 'usage' | 'logs' | 'settings';
+export type Screen = 'home' | 'generate' | 'story' | 'history' | 'usage' | 'logs' | 'settings';
 export type ModelChoice = 'seedance2' | 'seedance2fast' | 'both';
 export type Ratio = '9:16' | '16:9';
 export type GenerationStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'expired' | 'timeout';

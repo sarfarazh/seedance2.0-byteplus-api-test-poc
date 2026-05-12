@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Sidebar, { HamburgerButton, SCREEN_TITLE } from '@/components/sidebar';
 import GenerationStatus, { ActiveRun, RunPhase } from '@/components/generate/generation-status';
+import StoryScreen from '@/components/story/story-screen';
 import { AppLog, BudgetStatus, GenerationRecord, GenerationStatus as GenStatus, ModelChoice, Ratio, Screen, StructuredPrompt } from '@/types/app';
 import { storage } from '@/lib/storage';
 import { estimate, metrics } from '@/lib/pricing';
@@ -115,10 +116,10 @@ export default function Home() {
     }
     setClientId(cid);
     const initHash = window.location.hash.slice(1) as Screen;
-    if (['home', 'generate', 'history', 'usage', 'logs', 'settings'].includes(initHash)) setScreen(initHash);
+    if (['home', 'generate', 'story', 'history', 'usage', 'logs', 'settings'].includes(initHash)) setScreen(initHash);
     const onHashChange = () => {
       const h = window.location.hash.slice(1) as Screen;
-      setScreen(['home', 'generate', 'history', 'usage', 'logs', 'settings'].includes(h) ? h : 'home');
+      setScreen(['home', 'generate', 'story', 'history', 'usage', 'logs', 'settings'].includes(h) ? h : 'home');
     };
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
@@ -448,6 +449,7 @@ export default function Home() {
             )}
 
             <section className="grid grid-cols-2 gap-2">
+              <NavTile label="Story" hint="logline → script" onClick={() => setScreen('story')} />
               <NavTile label="History" hint="past generations" onClick={() => setScreen('history')} />
               <NavTile label="Usage" hint="balance & spend" onClick={() => setScreen('usage')} />
               <NavTile label="Logs" hint="api activity" onClick={() => setScreen('logs')} />
@@ -634,6 +636,10 @@ export default function Home() {
 
             <GenerationStatus runs={activeRuns} suggesting={suggesting} suggestStartedAt={suggestStartedAt} />
           </>
+        )}
+
+        {screen === 'story' && (
+          <StoryScreen orApiKey={or} clientId={clientId} onLog={addLog} />
         )}
 
         {screen === 'history' && (
